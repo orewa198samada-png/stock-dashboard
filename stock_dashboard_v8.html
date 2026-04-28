@@ -1,0 +1,851 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>株式ダッシュボード</title>
+<style>
+:root {
+  --bg:#f0f4f8;--surface:#fff;--surface2:#f8fafc;--border:#e2e8f0;
+  --accent:#2563eb;--accent2:#059669;--danger:#dc2626;--warn:#d97706;
+  --text:#1e293b;--text2:#475569;--text3:#94a3b8;
+  --shadow:0 1px 3px rgba(0,0,0,.1),0 1px 2px rgba(0,0,0,.06);
+  --shadow-md:0 4px 6px rgba(0,0,0,.07),0 2px 4px rgba(0,0,0,.05);
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:'Hiragino Kaku Gothic Pro','Meiryo','Yu Gothic',sans-serif;min-height:100vh;}
+.header{background:var(--surface);border-bottom:1px solid var(--border);padding:12px 16px;position:sticky;top:0;z-index:100;display:flex;align-items:center;justify-content:space-between;box-shadow:var(--shadow);}
+.header h1{font-size:17px;font-weight:800;color:var(--accent);}
+.market-open{font-size:11px;padding:3px 10px;border-radius:20px;background:#d1fae5;color:#065f46;border:1px solid #6ee7b7;font-weight:600;}
+.market-close{font-size:11px;padding:3px 10px;border-radius:20px;background:#fee2e2;color:#991b1b;border:1px solid #fca5a5;font-weight:600;}
+.last-update{font-size:11px;color:var(--text3);}
+.tabs{display:none;background:var(--surface);border-bottom:1px solid var(--border);padding:0 20px;}
+.tab-btn{padding:14px 16px;background:none;border:none;color:var(--text3);font-size:13px;font-weight:500;cursor:pointer;border-bottom:2px solid transparent;transition:all .2s;}
+.tab-btn.active{color:var(--accent);border-bottom-color:var(--accent);font-weight:700;}
+.bottom-nav{position:fixed;bottom:0;left:0;right:0;background:var(--surface);border-top:1px solid var(--border);display:flex;z-index:100;box-shadow:0 -2px 8px rgba(0,0,0,.08);}
+.bottom-nav button{flex:1;padding:8px 2px 6px;background:none;border:none;color:var(--text3);font-size:9px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:2px;transition:color .15s;}
+.bottom-nav button.active{color:var(--accent);}
+.bottom-nav button svg{width:20px;height:20px;}
+.content{padding:14px 12px 80px;max-width:960px;margin:0 auto;}
+.tab-panel{display:none;}
+.tab-panel.active{display:block;animation:fadeIn .15s ease;}
+@keyframes fadeIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
+.status-bar{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 14px;margin-bottom:14px;display:flex;align-items:center;gap:10px;font-size:12px;box-shadow:var(--shadow);}
+.progress{flex:1;height:5px;background:#e2e8f0;border-radius:3px;overflow:hidden;}
+.progress-fill{height:100%;background:linear-gradient(90deg,var(--accent),#7c3aed);border-radius:3px;transition:width .3s;}
+.indices{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:16px;}
+@media(min-width:600px){.indices{grid-template-columns:repeat(4,1fr);}}
+.index-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px;box-shadow:var(--shadow);}
+.index-name{font-size:11px;color:var(--text3);font-weight:500;margin-bottom:4px;}
+.index-val{font-size:20px;font-weight:800;color:var(--text);}
+.index-chg{font-size:12px;margin-top:3px;font-weight:600;}
+.pos{color:var(--accent2);}.neg{color:var(--danger);}
+.section-title{font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:1.2px;font-weight:700;margin:18px 0 10px;display:flex;align-items:center;gap:8px;}
+.section-title::after{content:'';flex:1;height:1px;background:var(--border);}
+.stocks{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;}
+@media(min-width:520px){.stocks{grid-template-columns:repeat(3,1fr);}}
+@media(min-width:780px){.stocks{grid-template-columns:repeat(4,1fr);}}
+.stock-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px;cursor:pointer;transition:all .15s;box-shadow:var(--shadow);}
+.stock-card:hover{border-color:var(--accent);box-shadow:var(--shadow-md);transform:translateY(-1px);}
+.stock-sym{font-size:15px;font-weight:800;color:var(--text);}
+.stock-name{font-size:10px;color:var(--text3);margin:2px 0 8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.stock-price{font-size:17px;font-weight:800;}
+.stock-chg{font-size:12px;margin-top:2px;font-weight:600;}
+.stock-time{font-size:10px;color:var(--text3);margin-top:4px;}
+.loading-pulse{animation:pulse 1.5s infinite;color:var(--text3)!important;}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+.tag{display:inline-block;font-size:9px;padding:2px 6px;border-radius:6px;margin-bottom:4px;font-weight:600;}
+.tag-core{background:#dbeafe;color:#1d4ed8;}.tag-mag7{background:#f3e8ff;color:#7c3aed;}
+.tag-buf{background:#fef3c7;color:#92400e;}.tag-sat{background:#d1fae5;color:#065f46;}
+input[type=text],input[type=password],input[type=email],input[type=number],textarea,select{
+  background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--text);
+  padding:10px 12px;font-size:14px;width:100%;transition:border-color .15s;font-family:inherit;}
+input:focus,textarea:focus,select:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px #2563eb20;}
+textarea{resize:vertical;min-height:80px;font-family:monospace;font-size:12px;}
+.btn{padding:10px 16px;border-radius:8px;border:none;cursor:pointer;font-size:13px;font-weight:700;transition:all .15s;}
+.btn-primary{background:var(--accent);color:white;}.btn-primary:hover{background:#1d4ed8;}
+.btn-sm{padding:7px 12px;font-size:12px;}
+.btn-danger{background:#fee2e2;color:var(--danger);border:1px solid #fca5a5;}
+.btn-outline{background:transparent;color:var(--accent);border:2px solid var(--accent);}
+.btn-green{background:var(--accent2);color:white;}.btn-green:hover{background:#047857;}
+.btn-gray{background:#f1f5f9;color:var(--text2);border:1px solid var(--border);}
+.watchlist-table{width:100%;border-collapse:collapse;background:var(--surface);border-radius:10px;overflow:hidden;box-shadow:var(--shadow);}
+.watchlist-table th{font-size:11px;color:var(--text3);text-align:left;padding:10px 12px;background:var(--surface2);border-bottom:1px solid var(--border);font-weight:700;text-transform:uppercase;letter-spacing:.5px;}
+.watchlist-table td{padding:10px 12px;border-bottom:1px solid var(--border);font-size:13px;}
+.watchlist-table tr:last-child td{border-bottom:none;}
+.dd-section{margin-top:24px;}
+.dd-table{width:100%;border-collapse:collapse;border-radius:12px;overflow:hidden;box-shadow:var(--shadow-md);font-size:12px;}
+.dd-table th{padding:10px;background:#1e293b;color:white;text-align:center;font-weight:700;font-size:11px;}
+.dd-table th:first-child{text-align:left;}
+.dd-table td{padding:9px 10px;border-bottom:1px solid var(--border);text-align:center;background:var(--surface);}
+.dd-table td:first-child{text-align:left;font-weight:700;background:var(--surface2);}
+.dd-table tr:last-child td{border-bottom:none;}
+.dd-alert{background:#fee2e2!important;color:var(--danger);font-weight:700;}
+.dd-warn{background:#fef3c7!important;color:var(--warn);font-weight:700;}
+.dd-ok{background:#d1fae5!important;color:var(--accent2);font-weight:700;}
+/* Alert table */
+.alert-table{width:100%;border-collapse:collapse;background:var(--surface);border-radius:10px;overflow:hidden;box-shadow:var(--shadow);margin-top:12px;}
+.alert-table th{font-size:11px;color:var(--text3);text-align:left;padding:10px 12px;background:var(--surface2);border-bottom:1px solid var(--border);font-weight:700;}
+.alert-table td{padding:10px 12px;border-bottom:1px solid var(--border);font-size:13px;}
+.alert-table tr:last-child td{border-bottom:none;}
+.alert-fired{background:#fff7ed!important;}
+.source-chips{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0;}
+.chip{padding:6px 14px;border-radius:20px;font-size:12px;font-weight:600;border:1.5px solid var(--border);cursor:pointer;background:var(--surface);color:var(--text2);transition:all .15s;}
+.chip.selected{background:var(--accent);border-color:var(--accent);color:white;}
+.ai-output{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px;margin-top:12px;font-size:13px;line-height:1.9;white-space:pre-wrap;min-height:120px;box-shadow:var(--shadow);color:var(--text);}
+.ai-typing::after{content:'▌';animation:blink .7s infinite;}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:0}}
+.score-bars{display:grid;gap:10px;margin-top:12px;}
+.score-item{display:grid;grid-template-columns:90px 1fr 40px;align-items:center;gap:10px;font-size:12px;font-weight:600;}
+.score-bar-bg{height:8px;background:#e2e8f0;border-radius:4px;overflow:hidden;}
+.score-bar-fill{height:100%;border-radius:4px;transition:width .8s;}
+/* Chat */
+.chat-container{background:var(--surface);border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow);overflow:hidden;margin-top:16px;}
+.chat-header{background:linear-gradient(135deg,var(--accent),#7c3aed);color:white;padding:12px 16px;font-size:13px;font-weight:700;display:flex;align-items:center;gap:8px;}
+.chat-messages{padding:14px;display:flex;flex-direction:column;gap:12px;max-height:400px;overflow-y:auto;}
+.chat-msg{display:flex;gap:8px;align-items:flex-start;}
+.chat-msg.user{flex-direction:row-reverse;}
+.chat-bubble{padding:10px 14px;border-radius:12px;font-size:13px;line-height:1.7;max-width:85%;white-space:pre-wrap;}
+.chat-msg.ai .chat-bubble{background:var(--surface2);border:1px solid var(--border);color:var(--text);}
+.chat-msg.user .chat-bubble{background:var(--accent);color:white;}
+.chat-avatar{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;margin-top:2px;}
+.chat-msg.ai .chat-avatar{background:#dbeafe;}
+.chat-msg.user .chat-avatar{background:#1d4ed8;color:white;font-size:12px;}
+.chat-input-row{display:flex;gap:8px;padding:12px;border-top:1px solid var(--border);background:var(--surface2);}
+.chat-input-row input{flex:1;font-size:13px;padding:8px 12px;border-radius:8px;}
+.chat-send{padding:8px 16px;background:var(--accent);color:white;border:none;border-radius:8px;cursor:pointer;font-weight:700;font-size:13px;flex-shrink:0;}
+.chat-send:disabled{background:var(--text3);cursor:not-allowed;}
+.error-msg{background:#fee2e2;border:1px solid #fca5a5;color:var(--danger);border-radius:8px;padding:10px 14px;font-size:12px;margin-top:8px;}
+.info-msg{background:#dbeafe;border:1px solid #93c5fd;color:#1d4ed8;border-radius:8px;padding:10px 14px;font-size:12px;margin-top:8px;}
+.success-msg{background:#d1fae5;border:1px solid #6ee7b7;color:#065f46;border-radius:8px;padding:10px 14px;font-size:12px;margin-top:8px;}
+.settings-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px;margin-bottom:16px;box-shadow:var(--shadow);}
+.settings-card-title{font-size:14px;font-weight:700;color:var(--text);margin-bottom:10px;display:flex;align-items:center;gap:6px;}
+.analysis-form{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;align-items:center;}
+.analysis-form input{flex:1;min-width:160px;max-width:240px;}
+/* Alert notification */
+.alert-toast{position:fixed;top:70px;right:12px;left:12px;background:#fff7ed;border:2px solid var(--warn);border-radius:12px;padding:14px 16px;z-index:999;box-shadow:var(--shadow-md);display:none;animation:slideIn .3s ease;}
+@keyframes slideIn{from{transform:translateY(-20px);opacity:0}to{transform:translateY(0);opacity:1}}
+@media(min-width:768px){.bottom-nav{display:none;}.tabs{display:flex;}.content{padding:20px 24px 40px;}.alert-toast{left:auto;width:360px;}}
+@media(max-width:480px){.dd-table{font-size:11px;}.dd-table th,.dd-table td{padding:7px 6px;}}
+</style>
+</head>
+<body>
+
+<div class="alert-toast" id="alertToast">
+  <div style="font-weight:700;color:var(--warn);margin-bottom:4px">🔔 株価アラート発動！</div>
+  <div id="alertToastMsg" style="font-size:13px;color:var(--text)"></div>
+  <button onclick="document.getElementById('alertToast').style.display='none'" style="margin-top:8px;font-size:12px;color:var(--text3);background:none;border:none;cursor:pointer">閉じる</button>
+</div>
+
+<div class="header">
+  <h1>📈 株式ダッシュボード</h1>
+  <div style="display:flex;gap:8px;align-items:center">
+    <span id="marketStatus" class="market-close">⭕ 市場閉場</span>
+    <span class="last-update" id="lastUpdate">--</span>
+  </div>
+</div>
+
+<div class="tabs">
+  <button class="tab-btn active" onclick="switchTab('overview')">📊 概要</button>
+  <button class="tab-btn" onclick="switchTab('watchlist')">📋 ウォッチリスト</button>
+  <button class="tab-btn" onclick="switchTab('alerts')">🔔 アラート</button>
+  <button class="tab-btn" onclick="switchTab('briefing')">📰 週次ブリーフィング</button>
+  <button class="tab-btn" onclick="switchTab('analysis')">🔍 銘柄分析</button>
+  <button class="tab-btn" onclick="switchTab('settings')">⚙️ 設定</button>
+</div>
+
+<div class="content">
+
+  <!-- OVERVIEW -->
+  <div id="tab-overview" class="tab-panel active">
+    <div class="status-bar">
+      <span id="statusText" style="color:var(--text2);font-size:12px">株価を取得中...</span>
+      <div class="progress"><div class="progress-fill" id="progressBar" style="width:0%"></div></div>
+      <button class="btn btn-outline btn-sm" onclick="fetchAllPrices(true)">🔄 更新</button>
+    </div>
+    <div class="indices">
+      <div class="index-card"><div class="index-name">S&P 500</div><div class="index-val loading-pulse" id="idx-SPY">---</div><div class="index-chg" id="idx-SPY-chg">--</div></div>
+      <div class="index-card"><div class="index-name">NASDAQ</div><div class="index-val loading-pulse" id="idx-QQQ">---</div><div class="index-chg" id="idx-QQQ-chg">--</div></div>
+      <div class="index-card"><div class="index-name">VIX（恐怖指数）</div><div class="index-val loading-pulse" id="idx-VIX">---</div><div class="index-chg" id="idx-VIX-chg">--</div></div>
+      <div class="index-card"><div class="index-name">USD / JPY</div><div class="index-val loading-pulse" id="idx-USDJPY">---</div><div class="index-chg" id="idx-USDJPY-chg">--</div></div>
+    </div>
+    <div class="section-title">コア銘柄</div><div class="stocks" id="stocks-core"></div>
+    <div class="section-title">マグニフィセント7</div><div class="stocks" id="stocks-mag7"></div>
+    <div class="section-title">バフェット保有銘柄</div><div class="stocks" id="stocks-buffett"></div>
+    <div class="section-title">サテライト銘柄</div><div class="stocks" id="stocks-satellite"></div>
+  </div>
+
+  <!-- WATCHLIST -->
+  <div id="tab-watchlist" class="tab-panel">
+    <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">
+      <input type="text" id="addSymbol" placeholder="シンボル (TSLA)" style="flex:1;min-width:100px;max-width:140px">
+      <input type="text" id="addName" placeholder="銘柄名" style="flex:2;min-width:140px">
+      <button class="btn btn-primary btn-sm" onclick="addToWatchlist()">＋ 追加</button>
+    </div>
+    <details style="margin-bottom:14px">
+      <summary style="font-size:12px;color:var(--text3);cursor:pointer;padding:6px 0">▶ CSV一括登録</summary>
+      <div style="margin-top:8px">
+        <textarea id="csvInput" placeholder="PLTR,Palantir,satellite&#10;SMCI,Super Micro,satellite"></textarea>
+        <button class="btn btn-outline btn-sm" style="margin-top:6px" onclick="importCSV()">読み込む</button>
+      </div>
+    </details>
+    <table class="watchlist-table">
+      <thead><tr><th>シンボル</th><th>銘柄名</th><th>現在値</th><th>前日比</th><th></th></tr></thead>
+      <tbody id="watchlistBody"></tbody>
+    </table>
+    <div class="dd-section">
+      <div class="section-title">📉 最高値からの下落分析</div>
+      <p style="font-size:12px;color:var(--text3);margin-bottom:10px">🔴 5%以上下落 / 🟡 2〜5%下落 / 🟢 最高値付近（2%以内）</p>
+      <div style="overflow-x:auto">
+        <table class="dd-table">
+          <thead>
+            <tr><th>銘柄</th><th>現在値</th><th colspan="2">3ヶ月高値</th><th colspan="2">6ヶ月高値</th><th colspan="2">52週高値</th></tr>
+            <tr style="background:#334155"><th></th><th></th><th>高値</th><th>下落率</th><th>高値</th><th>下落率</th><th>高値</th><th>下落率</th></tr>
+          </thead>
+          <tbody id="ddBody"><tr><td colspan="8" style="text-align:center;padding:20px;color:var(--text3)">「🔄 更新」後に表示されます</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ALERTS -->
+  <div id="tab-alerts" class="tab-panel">
+    <div class="settings-card">
+      <div class="settings-card-title">🔔 株価下落アラート設定</div>
+      <p style="font-size:12px;color:var(--text2);margin-bottom:12px">指定価格を下回ったら画面通知＋メールで知らせます（株価更新時にチェック）</p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">
+        <div style="flex:1;min-width:100px">
+          <label style="font-size:11px;color:var(--text3);font-weight:700">シンボル</label>
+          <input type="text" id="alertSym" placeholder="NVDA" style="margin-top:4px">
+        </div>
+        <div style="flex:1;min-width:120px">
+          <label style="font-size:11px;color:var(--text3);font-weight:700">アラート価格（$）</label>
+          <input type="number" id="alertPrice" placeholder="例: 800" step="0.01" style="margin-top:4px">
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="addAlert()" style="margin-bottom:0">追加</button>
+      </div>
+    </div>
+
+    <div class="section-title">設定中のアラート</div>
+    <table class="alert-table">
+      <thead><tr><th>シンボル</th><th>アラート価格</th><th>現在値</th><th>状態</th><th></th></tr></thead>
+      <tbody id="alertBody"></tbody>
+    </table>
+
+    <div class="settings-card" style="margin-top:20px">
+      <div class="settings-card-title">📧 メール通知設定（GAS連携）</div>
+      <p style="font-size:12px;color:var(--text2);margin-bottom:10px">アラート発動時にGmailへ通知します。GAS WebアプリURLを設定してください。</p>
+      <div style="display:flex;gap:8px">
+        <input type="text" id="gasUrlInput" placeholder="https://script.google.com/macros/s/..." style="flex:1;font-size:12px">
+        <button class="btn btn-primary btn-sm" onclick="saveGasUrl()">保存</button>
+      </div>
+      <div id="gasStatus" style="font-size:11px;color:var(--text3);margin-top:6px"></div>
+      <details style="margin-top:12px">
+        <summary style="font-size:12px;color:var(--accent);cursor:pointer;font-weight:600">▶ GAS設定手順を見る</summary>
+        <div style="margin-top:10px;font-size:12px;color:var(--text2);line-height:2">
+          <p style="font-weight:700;margin-bottom:6px">📋 手順（5分）</p>
+          <ol style="padding-left:16px">
+            <li><a href="https://script.google.com" target="_blank" style="color:var(--accent)">script.google.com</a> を開く</li>
+            <li>「新しいプロジェクト」を作成</li>
+            <li>下のコードを貼り付けて保存</li>
+            <li>「デプロイ」→「新しいデプロイ」→「ウェブアプリ」</li>
+            <li>アクセス: 「全員」→デプロイ→URLをコピーして上に貼り付け</li>
+          </ol>
+          <div style="margin-top:10px;background:#f8fafc;border:1px solid var(--border);border-radius:8px;padding:12px">
+            <div style="font-size:11px;font-weight:700;color:var(--text3);margin-bottom:6px">GASコード（コピーして貼り付け）</div>
+            <pre id="gasCode" style="font-size:11px;color:var(--text);white-space:pre-wrap;font-family:monospace;line-height:1.6"></pre>
+            <button class="btn btn-outline btn-sm" style="margin-top:8px" onclick="copyGasCode()">📋 コードをコピー</button>
+          </div>
+        </div>
+      </details>
+    </div>
+  </div>
+
+  <!-- BRIEFING -->
+  <div id="tab-briefing" class="tab-panel">
+    <div id="briefingApiWarn"></div>
+    <p style="font-size:13px;color:var(--text2);margin-bottom:10px">参照ソースを選択（米国株は英語→日本語に翻訳）</p>
+    <div class="source-chips">
+      <span class="chip selected" data-src="Bloomberg">Bloomberg</span>
+      <span class="chip selected" data-src="Reuters">Reuters</span>
+      <span class="chip selected" data-src="WSJ">Wall Street Journal</span>
+      <span class="chip" data-src="FT">Financial Times</span>
+      <span class="chip" data-src="CNBC">CNBC</span>
+      <span class="chip" data-src="Barrons">Barron's</span>
+    </div>
+    <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn btn-green" onclick="generateBriefing()">🤖 AI週次ブリーフィング生成</button>
+      <button class="btn btn-outline btn-sm" onclick="document.getElementById('briefingOutput').textContent='待機中...'">クリア</button>
+    </div>
+    <div class="ai-output" id="briefingOutput">「設定」タブでGemini APIキーを入力後、ボタンを押してください。</div>
+  </div>
+
+  <!-- ANALYSIS + CHAT -->
+  <div id="tab-analysis" class="tab-panel">
+    <div id="analysisApiWarn"></div>
+    <div class="analysis-form">
+      <input type="text" id="analysisSymbol" placeholder="銘柄シンボル (NVDA, 7203.T…)">
+      <button class="btn btn-green" onclick="analyzeStock()">🔍 分析開始</button>
+    </div>
+    <div id="analysisMsg"></div>
+    <div class="ai-output" id="analysisOutput">銘柄シンボルを入力して「分析開始」を押してください。</div>
+    <div id="scoreSection" style="display:none;margin-top:16px">
+      <div class="section-title">スコア評価</div>
+      <div class="score-bars" id="scoreBars"></div>
+    </div>
+
+    <!-- CHAT -->
+    <div class="chat-container" id="chatContainer" style="display:none">
+      <div class="chat-header">
+        💬 <span id="chatTitle">AIアナリストに質問する</span>
+        <button onclick="clearChat()" style="margin-left:auto;background:rgba(255,255,255,.2);border:none;color:white;padding:4px 10px;border-radius:6px;cursor:pointer;font-size:11px">クリア</button>
+      </div>
+      <div class="chat-messages" id="chatMessages">
+        <div class="chat-msg ai">
+          <div class="chat-avatar">🤖</div>
+          <div class="chat-bubble">分析レポートについて何でも聞いてください！<br>例：「なぜNVDAは成長性が高いの？」「買い時はいつ？」「競合はどこ？」</div>
+        </div>
+      </div>
+      <div class="chat-input-row">
+        <input type="text" id="chatInput" placeholder="質問を入力..." onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendChat();}">
+        <button class="chat-send" id="chatSendBtn" onclick="sendChat()">送信</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- SETTINGS -->
+  <div id="tab-settings" class="tab-panel">
+    <div class="settings-card">
+      <div class="settings-card-title">🔑 Gemini APIキー設定</div>
+      <p style="font-size:12px;color:var(--text2);margin-bottom:10px">
+        <a href="https://aistudio.google.com/app/apikey" target="_blank" style="color:var(--accent)">Google AI Studio</a> でキー取得後、ここに貼り付けてください。
+      </p>
+      <div style="display:flex;gap:8px;align-items:center">
+        <input type="password" id="geminiKeyInput" placeholder="AIzaSy..." style="flex:1;font-family:monospace">
+        <button class="btn btn-primary btn-sm" onclick="saveApiKey()">保存</button>
+        <button class="btn btn-outline btn-sm" onclick="toggleKeyVisibility()">表示</button>
+      </div>
+      <div id="apiSetOk" style="display:none;margin-top:8px" class="success-msg">✅ APIキーが設定されました。</div>
+    </div>
+    <div class="settings-card">
+      <div class="settings-card-title">⚙️ 株価取得 Proxy URL</div>
+      <div style="display:flex;gap:8px">
+        <input type="text" id="proxyUrlInput" placeholder="https://stock-proxy.xxx.workers.dev" style="flex:1;font-size:12px">
+        <button class="btn btn-primary btn-sm" onclick="saveProxyUrl()">保存</button>
+      </div>
+      <div id="proxyStatus" style="font-size:11px;color:var(--text3);margin-top:6px"></div>
+    </div>
+    <div class="settings-card">
+      <div class="settings-card-title">📋 使い方</div>
+      <ol style="font-size:13px;color:var(--text2);line-height:2.2;padding-left:18px">
+        <li>Proxy URLを入力 → 株価自動取得</li>
+        <li>Gemini APIキーを入力 → AI分析・ブリーフィング・チャット</li>
+        <li>「アラート」タブで下落通知を設定</li>
+        <li>「銘柄分析」で分析後にチャットで深掘り</li>
+        <li>「週次ブリーフィング」で土日に今週まとめ</li>
+      </ol>
+    </div>
+  </div>
+
+</div>
+
+<div class="bottom-nav">
+  <button class="active" onclick="switchTab('overview')" id="nav-overview">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>概要
+  </button>
+  <button onclick="switchTab('watchlist')" id="nav-watchlist">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>リスト
+  </button>
+  <button onclick="switchTab('alerts')" id="nav-alerts">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>アラート
+  </button>
+  <button onclick="switchTab('briefing')" id="nav-briefing">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>ブリーフ
+  </button>
+  <button onclick="switchTab('analysis')" id="nav-analysis">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>分析
+  </button>
+  <button onclick="switchTab('settings')" id="nav-settings">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>設定
+  </button>
+</div>
+
+<script>
+const STOCKS = {
+  core:    [{sym:'NVDA',name:'NVIDIA'},{sym:'AAPL',name:'Apple'},{sym:'MSFT',name:'Microsoft'},{sym:'NFLX',name:'Netflix'}],
+  mag7:    [{sym:'GOOGL',name:'Alphabet'},{sym:'AMZN',name:'Amazon'},{sym:'META',name:'Meta'},{sym:'TSLA',name:'Tesla'}],
+  buffett: [{sym:'AXP',name:'Amex'},{sym:'BAC',name:'BofA'},{sym:'KO',name:'Coca-Cola'},{sym:'CVX',name:'Chevron'},{sym:'OXY',name:'Occidental'},{sym:'MCO',name:"Moody's"},{sym:'CB',name:'Chubb'},{sym:'DPZ',name:"Domino's"}],
+};
+const INDEX_SYMS = [{sym:'SPY',id:'idx-SPY'},{sym:'QQQ',id:'idx-QQQ'},{sym:'^VIX',id:'idx-VIX'},{sym:'USDJPY=X',id:'idx-USDJPY'}];
+
+let watchlist  = JSON.parse(localStorage.getItem('watchlist')  || '[]');
+let priceCache = JSON.parse(localStorage.getItem('priceCache') || '{}');
+let highCache  = JSON.parse(localStorage.getItem('highCache')  || '{}');
+let cacheDate  = localStorage.getItem('priceCacheDate') || '';
+let alerts     = JSON.parse(localStorage.getItem('stockAlerts') || '[]');
+let PROXY_URL  = localStorage.getItem('proxyUrl')  || 'https://stock-proxy.orewa198samada.workers.dev';
+let GEMINI_KEY = localStorage.getItem('geminiKey') || '';
+let GAS_URL    = localStorage.getItem('gasUrl')    || '';
+let chatHistory = [];
+let currentAnalysisSym = '';
+
+// GAS code template
+const GAS_CODE = `function doPost(e) {
+  try {
+    const data = JSON.parse(e.postData.contents);
+    const to = Session.getActiveUser().getEmail();
+    const subject = '🔔 株価アラート: ' + data.sym + ' が $' + data.price + ' を下回りました';
+    const body = [
+      '株価アラートが発動しました。',
+      '',
+      '銘柄: ' + data.sym,
+      '現在値: $' + data.current,
+      'アラート設定価格: $' + data.price,
+      '',
+      '確認: https://orewa198samada-png.github.io/stock-dashboard/stock_dashboard_v8.html',
+    ].join('\\n');
+    GmailApp.sendEmail(to, subject, body);
+    return ContentService.createTextOutput(JSON.stringify({ok:true})).setMimeType(ContentService.MimeType.JSON);
+  } catch(err) {
+    return ContentService.createTextOutput(JSON.stringify({ok:false,error:err.message})).setMimeType(ContentService.MimeType.JSON);
+  }
+}`;
+
+window.addEventListener('DOMContentLoaded', () => {
+  renderAllStockCards();
+  renderWatchlist();
+  renderAlerts();
+  setupChips();
+  document.getElementById('proxyUrlInput').value = PROXY_URL;
+  document.getElementById('gasCode').textContent = GAS_CODE;
+  if (GAS_URL) { document.getElementById('gasUrlInput').value = GAS_URL; document.getElementById('gasStatus').textContent = '✅ GAS URL設定済み'; }
+  if (GEMINI_KEY) { document.getElementById('geminiKeyInput').value = GEMINI_KEY; document.getElementById('apiSetOk').style.display='block'; }
+  const today = new Date().toLocaleDateString('ja-JP');
+  if (cacheDate===today && Object.keys(priceCache).length>0) {
+    applyPricesFromCache(); renderDrawdownTable();
+    document.getElementById('statusText').textContent='キャッシュ済み（本日取得）';
+    document.getElementById('progressBar').style.width='100%';
+  } else { fetchAllPrices(false); }
+  checkMarketStatus();
+});
+
+// ---- SETTINGS ----
+function saveApiKey() {
+  GEMINI_KEY = document.getElementById('geminiKeyInput').value.trim();
+  localStorage.setItem('geminiKey', GEMINI_KEY);
+  const ok = document.getElementById('apiSetOk');
+  ok.style.display = GEMINI_KEY ? 'block' : 'none';
+  if (GEMINI_KEY) ok.textContent = '✅ APIキーを保存しました！';
+}
+function toggleKeyVisibility() {
+  const i = document.getElementById('geminiKeyInput');
+  i.type = i.type==='password' ? 'text' : 'password';
+}
+function saveProxyUrl() {
+  PROXY_URL = document.getElementById('proxyUrlInput').value.trim().replace(/\/$/,'');
+  localStorage.setItem('proxyUrl', PROXY_URL);
+  document.getElementById('proxyStatus').textContent = '✅ 保存しました';
+}
+function saveGasUrl() {
+  GAS_URL = document.getElementById('gasUrlInput').value.trim();
+  localStorage.setItem('gasUrl', GAS_URL);
+  document.getElementById('gasStatus').textContent = GAS_URL ? '✅ GAS URL保存しました' : '';
+}
+function copyGasCode() {
+  navigator.clipboard.writeText(GAS_CODE).then(()=>alert('コードをコピーしました！')).catch(()=>{
+    const ta = document.createElement('textarea');
+    ta.value = GAS_CODE; document.body.appendChild(ta); ta.select();
+    document.execCommand('copy'); document.body.removeChild(ta);
+    alert('コードをコピーしました！');
+  });
+}
+
+// ---- TABS ----
+function switchTab(name) {
+  document.querySelectorAll('.tab-panel').forEach(el=>el.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(el=>el.classList.remove('active'));
+  document.querySelectorAll('.bottom-nav button').forEach(el=>el.classList.remove('active'));
+  document.getElementById('tab-'+name).classList.add('active');
+  const btn = document.querySelector(`.tab-btn[onclick*="${name}"]`);
+  if(btn) btn.classList.add('active');
+  const nav = document.getElementById('nav-'+name);
+  if(nav) nav.classList.add('active');
+  if((name==='briefing'||name==='analysis')&&!GEMINI_KEY) {
+    const id = name==='briefing'?'briefingApiWarn':'analysisApiWarn';
+    document.getElementById(id).innerHTML=`<div class="info-msg">⚠️ Gemini APIキー未設定です。<a href="#" onclick="switchTab('settings');return false" style="color:var(--accent);font-weight:bold">「設定」タブ</a>で入力してください。</div>`;
+  }
+}
+
+// ---- STOCK CARDS ----
+function renderAllStockCards() {
+  renderGroup('stocks-core',    STOCKS.core,    'core');
+  renderGroup('stocks-mag7',    STOCKS.mag7,    'mag7');
+  renderGroup('stocks-buffett', STOCKS.buffett, 'buf');
+  const satEl = document.getElementById('stocks-satellite');
+  satEl.innerHTML = '';
+  const sats = watchlist.filter(w=>!w.type||w.type==='satellite');
+  if (!sats.length) { satEl.innerHTML='<p style="color:var(--text3);font-size:12px;padding:8px">ウォッチリストタブで銘柄を追加してください</p>'; return; }
+  sats.forEach(w=>satEl.appendChild(createCard(w.sym,w.name,'sat')));
+}
+function renderGroup(id,arr,tag){ const el=document.getElementById(id);el.innerHTML='';arr.forEach(s=>el.appendChild(createCard(s.sym,s.name,tag))); }
+function createCard(sym,name,tag) {
+  const labels={core:'コア',mag7:'Mag7',buf:'バフェット',sat:'サテライト'};
+  const d=priceCache[sym];
+  const div=document.createElement('div');
+  div.className='stock-card';div.id='card-'+sym;
+  div.onclick=()=>{ switchTab('analysis');document.getElementById('analysisSymbol').value=sym; };
+  div.innerHTML=`<span class="tag tag-${tag}">${labels[tag]||tag}</span>
+    <div class="stock-sym">${sym}</div><div class="stock-name">${name}</div>
+    <div class="stock-price ${d?(d.chgPct>=0?'pos':'neg'):'loading-pulse'}" id="price-${sym}">${d?'$'+d.price.toFixed(2):'---'}</div>
+    <div class="stock-chg ${d?(d.chgPct>=0?'pos':'neg'):''}" id="chg-${sym}">${d?(d.chgPct>=0?'▲':'▼')+Math.abs(d.chgPct).toFixed(2)+'%':'取得中...'}</div>
+    <div class="stock-time" id="time-${sym}">${d?d.time:''}</div>`;
+  return div;
+}
+
+// ---- PRICE FETCH ----
+async function fetchPrice(sym,range='5d') {
+  const ctrl=new AbortController(), timer=setTimeout(()=>ctrl.abort(),12000);
+  try {
+    const res=await fetch(`${PROXY_URL}?sym=${encodeURIComponent(sym)}&range=${range}&interval=1d`,{signal:ctrl.signal});
+    clearTimeout(timer);
+    if(!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data=await res.json();
+    const result=data?.chart?.result?.[0]; if(!result) throw new Error('No data');
+    const meta=result.meta;
+    const highs=result.indicators?.quote?.[0]?.high||[];
+    const price=meta.regularMarketPrice;
+    const prev=meta.chartPreviousClose||meta.previousClose||price;
+    const maxHigh=Math.max(...highs.filter(v=>v!=null));
+    return {price,chgPct:((price-prev)/prev*100),maxHigh:isFinite(maxHigh)?maxHigh:null};
+  } catch(e){clearTimeout(timer);throw e;}
+}
+function getAllSyms() {
+  const s=new Set();
+  [...STOCKS.core,...STOCKS.mag7,...STOCKS.buffett].forEach(x=>s.add(x.sym));
+  watchlist.forEach(w=>s.add(w.sym));
+  INDEX_SYMS.forEach(i=>s.add(i.sym));
+  return [...s];
+}
+async function fetchAllPrices(force) {
+  const today=new Date().toLocaleDateString('ja-JP');
+  if(!force&&cacheDate===today&&Object.keys(priceCache).length>0) return;
+  if(!PROXY_URL){document.getElementById('statusText').textContent='⚠️ 設定タブでProxy URLを入力';return;}
+  const syms=getAllSyms(); let done=0;
+  const bar=document.getElementById('progressBar'),statusEl=document.getElementById('statusText');
+  for(const sym of syms) {
+    statusEl.textContent=`${sym} 取得中... (${done+1}/${syms.length})`;
+    try {
+      const d52=await fetchPrice(sym,'1y');
+      priceCache[sym]={price:d52.price,chgPct:d52.chgPct,time:new Date().toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'})};
+      highCache[sym]={h52w:d52.maxHigh};
+      try{const d3m=await fetchPrice(sym,'3mo');highCache[sym].h3m=d3m.maxHigh;}catch(e){highCache[sym].h3m=null;}
+      try{const d6m=await fetchPrice(sym,'6mo');highCache[sym].h6m=d6m.maxHigh;}catch(e){highCache[sym].h6m=null;}
+      updateCard(sym,d52.price,d52.chgPct,priceCache[sym].time);
+      checkAlerts(sym,d52.price);
+    } catch(e) {
+      console.warn(sym,e.message);
+      const pr=document.getElementById('price-'+sym),ch=document.getElementById('chg-'+sym);
+      if(pr){pr.textContent='N/A';pr.classList.remove('loading-pulse');}
+      if(ch) ch.textContent='失敗';
+    }
+    done++;bar.style.width=(done/syms.length*100)+'%';
+  }
+  INDEX_SYMS.forEach(i=>{
+    const d=priceCache[i.sym];if(!d)return;
+    const el=document.getElementById(i.id),ce=document.getElementById(i.id+'-chg');
+    if(el){el.textContent=i.sym==='USDJPY=X'?d.price.toFixed(2):d.price.toFixed(i.sym==='^VIX'?2:0);el.classList.remove('loading-pulse');}
+    if(ce){ce.textContent=(d.chgPct>=0?'▲':'▼')+Math.abs(d.chgPct).toFixed(2)+'%';ce.className='index-chg '+(d.chgPct>=0?'pos':'neg');}
+  });
+  localStorage.setItem('priceCache',JSON.stringify(priceCache));
+  localStorage.setItem('highCache',JSON.stringify(highCache));
+  localStorage.setItem('priceCacheDate',today);
+  cacheDate=today;
+  statusEl.textContent=`取得完了 ${syms.length}銘柄`;
+  document.getElementById('lastUpdate').textContent=new Date().toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'})+'更新';
+  checkMarketStatus(); renderDrawdownTable(); renderAlerts();
+}
+function updateCard(sym,price,chgPct,time) {
+  const pr=document.getElementById('price-'+sym),ch=document.getElementById('chg-'+sym),ti=document.getElementById('time-'+sym);
+  if(!pr)return;
+  const pos=chgPct>=0;
+  pr.textContent='$'+price.toFixed(2);pr.className='stock-price '+(pos?'pos':'neg');pr.classList.remove('loading-pulse');
+  if(ch){ch.textContent=(pos?'▲':'▼')+Math.abs(chgPct).toFixed(2)+'%';ch.className='stock-chg '+(pos?'pos':'neg');}
+  if(ti)ti.textContent=time;
+}
+function applyPricesFromCache(){
+  Object.keys(priceCache).forEach(sym=>{const d=priceCache[sym];updateCard(sym,d.price,d.chgPct,d.time);});
+  INDEX_SYMS.forEach(i=>{
+    const d=priceCache[i.sym];if(!d)return;
+    const el=document.getElementById(i.id),ce=document.getElementById(i.id+'-chg');
+    if(el){el.textContent=i.sym==='USDJPY=X'?d.price.toFixed(2):d.price.toFixed(i.sym==='^VIX'?2:0);el.classList.remove('loading-pulse');}
+    if(ce){ce.textContent=(d.chgPct>=0?'▲':'▼')+Math.abs(d.chgPct).toFixed(2)+'%';ce.className='index-chg '+(d.chgPct>=0?'pos':'neg');}
+  });
+}
+function checkMarketStatus(){
+  const now=new Date(),utcMin=now.getUTCHours()*60+now.getUTCMinutes(),day=now.getUTCDay();
+  const open=(day>=1&&day<=5)&&(utcMin>=810&&utcMin<1200);
+  const el=document.getElementById('marketStatus');
+  if(open){el.textContent='🟢 市場開場中';el.className='market-open';}
+  else{el.textContent='⭕ 市場閉場';el.className='market-close';}
+}
+
+// ---- DRAWDOWN TABLE ----
+function renderDrawdownTable(){
+  const allSyms=[...STOCKS.core,...STOCKS.mag7,...STOCKS.buffett.slice(0,4),...watchlist.map(w=>({sym:w.sym,name:w.name}))];
+  const tbody=document.getElementById('ddBody');tbody.innerHTML='';
+  allSyms.forEach(({sym,name})=>{
+    const pc=priceCache[sym],hc=highCache[sym];if(!pc)return;
+    const price=pc.price;
+    const tr=document.createElement('tr');
+    function ddCell(high){
+      if(!high)return '<td>-</td><td style="color:var(--text3)">-</td>';
+      const pct=(price-high)/high*100;
+      const cls=pct>=-2?'dd-ok':pct>=-5?'dd-warn':'dd-alert';
+      return `<td>$${high.toFixed(2)}</td><td class="${cls}">${pct.toFixed(1)}%</td>`;
+    }
+    tr.innerHTML=`<td><strong>${sym}</strong><br><span style="font-size:10px;color:var(--text3)">${name}</span></td>
+      <td><strong>$${price.toFixed(2)}</strong></td>${ddCell(hc?.h3m)}${ddCell(hc?.h6m)}${ddCell(hc?.h52w)}`;
+    tbody.appendChild(tr);
+  });
+  if(!tbody.children.length) tbody.innerHTML='<tr><td colspan="8" style="text-align:center;padding:20px;color:var(--text3)">「概要」タブの「🔄 更新」を押してください</td></tr>';
+}
+
+// ---- WATCHLIST ----
+function renderWatchlist(){
+  const tbody=document.getElementById('watchlistBody');tbody.innerHTML='';
+  if(!watchlist.length){tbody.innerHTML='<tr><td colspan="5" style="color:var(--text3);text-align:center;padding:20px">銘柄がありません</td></tr>';return;}
+  watchlist.forEach((w,i)=>{
+    const d=priceCache[w.sym];
+    const tr=document.createElement('tr');
+    tr.innerHTML=`<td><strong>${w.sym}</strong></td><td>${w.name}</td>
+      <td class="${d?(d.chgPct>=0?'pos':'neg'):''}">${d?'$'+d.price.toFixed(2):'---'}</td>
+      <td class="${d?(d.chgPct>=0?'pos':'neg'):''}">${d?(d.chgPct>=0?'▲':'▼')+Math.abs(d.chgPct).toFixed(2)+'%':'---'}</td>
+      <td><button class="btn btn-danger btn-sm" onclick="removeFromWatchlist(${i})">削除</button></td>`;
+    tbody.appendChild(tr);
+  });
+}
+function addToWatchlist(){
+  const sym=document.getElementById('addSymbol').value.trim().toUpperCase();
+  const name=document.getElementById('addName').value.trim();
+  if(!sym)return;
+  if(watchlist.find(w=>w.sym===sym)){alert('既に登録済みです');return;}
+  watchlist.push({sym,name:name||sym,type:'satellite'});
+  saveWL();renderWatchlist();renderAllStockCards();renderDrawdownTable();
+  document.getElementById('addSymbol').value='';document.getElementById('addName').value='';
+}
+function removeFromWatchlist(i){watchlist.splice(i,1);saveWL();renderWatchlist();renderAllStockCards();renderDrawdownTable();}
+function saveWL(){localStorage.setItem('watchlist',JSON.stringify(watchlist));}
+function importCSV(){
+  const lines=document.getElementById('csvInput').value.trim().split('\n');let n=0;
+  lines.forEach(l=>{
+    const p=l.split(',').map(s=>s.trim());
+    if(p[0]&&!watchlist.find(w=>w.sym===p[0].toUpperCase())){watchlist.push({sym:p[0].toUpperCase(),name:p[1]||p[0],type:p[2]||'satellite'});n++;}
+  });
+  saveWL();renderWatchlist();renderAllStockCards();renderDrawdownTable();
+  alert(`${n}銘柄追加しました`);document.getElementById('csvInput').value='';
+}
+
+// ---- ALERTS ----
+function renderAlerts(){
+  const tbody=document.getElementById('alertBody');tbody.innerHTML='';
+  if(!alerts.length){tbody.innerHTML='<tr><td colspan="5" style="color:var(--text3);text-align:center;padding:20px">アラートがありません</td></tr>';return;}
+  alerts.forEach((a,i)=>{
+    const d=priceCache[a.sym];
+    const current=d?d.price:null;
+    const fired=current&&current<a.price;
+    const tr=document.createElement('tr');
+    if(fired)tr.className='alert-fired';
+    tr.innerHTML=`<td><strong>${a.sym}</strong></td>
+      <td style="color:var(--warn);font-weight:700">$${parseFloat(a.price).toFixed(2)}</td>
+      <td class="${current?(current>=a.price?'pos':'neg'):''}">${current?'$'+current.toFixed(2):'---'}</td>
+      <td>${fired?'<span style="color:var(--danger);font-weight:700">🔴 発動中</span>':'<span style="color:var(--accent2)">✅ 正常</span>'}</td>
+      <td><button class="btn btn-danger btn-sm" onclick="removeAlert(${i})">削除</button></td>`;
+    tbody.appendChild(tr);
+  });
+}
+function addAlert(){
+  const sym=document.getElementById('alertSym').value.trim().toUpperCase();
+  const price=parseFloat(document.getElementById('alertPrice').value);
+  if(!sym||isNaN(price)){alert('シンボルと価格を入力してください');return;}
+  alerts.push({sym,price,active:true});
+  localStorage.setItem('stockAlerts',JSON.stringify(alerts));
+  renderAlerts();
+  document.getElementById('alertSym').value='';document.getElementById('alertPrice').value='';
+}
+function removeAlert(i){alerts.splice(i,1);localStorage.setItem('stockAlerts',JSON.stringify(alerts));renderAlerts();}
+function checkAlerts(sym,price){
+  const fired=alerts.filter(a=>a.sym===sym&&price<a.price);
+  if(!fired.length)return;
+  fired.forEach(a=>{
+    const msg=`${sym} が $${price.toFixed(2)} まで下落（設定: $${a.price}）`;
+    showAlertToast(msg);
+    if(GAS_URL) sendAlertEmail(sym,a.price,price);
+  });
+}
+function showAlertToast(msg){
+  const toast=document.getElementById('alertToast');
+  document.getElementById('alertToastMsg').textContent=msg;
+  toast.style.display='block';
+  setTimeout(()=>toast.style.display='none',8000);
+}
+async function sendAlertEmail(sym,alertPrice,current){
+  if(!GAS_URL)return;
+  try {
+    await fetch(GAS_URL,{method:'POST',body:JSON.stringify({sym,price:alertPrice,current:current.toFixed(2)}),headers:{'Content-Type':'application/json'}});
+  } catch(e){console.warn('Email send failed:',e);}
+}
+
+// ---- CHIPS ----
+function setupChips(){document.querySelectorAll('.chip').forEach(c=>c.addEventListener('click',()=>c.classList.toggle('selected')));}
+function getSelectedSources(){return[...document.querySelectorAll('.chip.selected')].map(c=>c.dataset.src);}
+
+// ---- GEMINI ----
+async function callGemini(messages) {
+  if(!GEMINI_KEY)throw new Error('NO_KEY');
+  const MODELS=['gemini-2.5-flash','gemini-2.5-flash-lite','gemini-1.5-flash-latest'];
+  let lastError=null;
+  for(const model of MODELS){
+    for(let attempt=0;attempt<3;attempt++){
+      if(attempt>0)await new Promise(r=>setTimeout(r,attempt*4000));
+      const url=`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_KEY}`;
+      // Support both single string and chat messages array
+      const contents = Array.isArray(messages)
+        ? messages.map(m=>({role:m.role==='user'?'user':'model',parts:[{text:m.content}]}))
+        : [{role:'user',parts:[{text:messages}]}];
+      const body={contents,generationConfig:{temperature:0.7,maxOutputTokens:4096}};
+      const ctrl=new AbortController(),timer=setTimeout(()=>ctrl.abort(),90000);
+      try{
+        const res=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body),signal:ctrl.signal});
+        clearTimeout(timer);
+        if(!res.ok){
+          const err=await res.json().catch(()=>({}));
+          const msg=err.error?.message||`API Error ${res.status}`;
+          lastError=new Error(msg);
+          if(res.status===429||msg.includes('high demand')||msg.includes('quota'))continue;
+          if(res.status===404||msg.includes('not found'))break;
+          throw new Error(msg);
+        }
+        const data=await res.json();
+        const text=data.candidates?.[0]?.content?.parts?.[0]?.text;
+        if(text)return text;
+        throw new Error('応答が空でした');
+      }catch(e){
+        clearTimeout(timer);
+        if(e.message==='NO_KEY')throw e;
+        if(e.name==='AbortError')throw new Error('タイムアウト（90秒）');
+        lastError=e;
+      }
+    }
+  }
+  throw lastError||new Error('全モデルで失敗しました');
+}
+function noKeyMsg(el){el.classList.remove('ai-typing');el.textContent='⚠️ Gemini APIキーが未設定です。\n\n「設定」タブ（⚙️）からキーを入力してください。\n取得: https://aistudio.google.com/app/apikey（無料）';}
+
+// ---- BRIEFING ----
+async function generateBriefing(){
+  if(!GEMINI_KEY){noKeyMsg(document.getElementById('briefingOutput'));return;}
+  const out=document.getElementById('briefingOutput');
+  out.textContent='生成中... (混雑時は自動リトライします。30秒〜2分かかることがあります)';
+  out.classList.add('ai-typing');
+  const syms=[...STOCKS.core,...STOCKS.mag7,...STOCKS.buffett.slice(0,4),...watchlist.slice(0,5)].map(s=>s.sym||s).join(', ');
+  const srcs=getSelectedSources().join(', ');
+  const today=new Date().toLocaleDateString('ja-JP');
+  const prompt=`あなたは優秀な株式アナリストです。今日は${today}です。${srcs}などの金融メディアの最新情報をもとに、以下の銘柄群の今週の動向を日本語で詳しくまとめてください。英語のニュースは日本語に翻訳してください。途中で切れないよう必ず最後まで書いてください。
+対象銘柄: ${syms}
+以下の構成で各セクションを丁寧に（5〜8行程度）まとめてください：
+【📊 今週の市場全体サマリー】
+【🔵 コア4銘柄（NVDA/AAPL/MSFT/NFLX）のハイライト】
+【🟣 マグニフィセント7の動向（GOOGL/AMZN/META/TSLA）】
+【🟡 バフェット保有銘柄の注目点】
+【⚠️ 来週の注目イベント・リスク要因】`;
+  try{
+    const text=await callGemini(prompt);
+    out.classList.remove('ai-typing');out.textContent=text;
+  }catch(e){out.classList.remove('ai-typing');if(e.message==='NO_KEY')noKeyMsg(out);else out.textContent=`エラー: ${e.message}`;}
+}
+
+// ---- ANALYSIS ----
+async function analyzeStock(){
+  const sym=document.getElementById('analysisSymbol').value.trim().toUpperCase();
+  if(!sym)return;
+  if(!GEMINI_KEY){noKeyMsg(document.getElementById('analysisOutput'));return;}
+  const out=document.getElementById('analysisOutput'),msgEl=document.getElementById('analysisMsg');
+  const scoreSection=document.getElementById('scoreSection');
+  out.textContent=`${sym} を分析中... (混雑時は自動リトライします)`;
+  out.classList.add('ai-typing');
+  msgEl.innerHTML='';scoreSection.style.display='none';
+  document.getElementById('chatContainer').style.display='none';
+  chatHistory=[];currentAnalysisSym=sym;
+  const today=new Date().toLocaleDateString('ja-JP');
+  const pd=priceCache[sym],hc=highCache[sym];
+  const priceInfo=pd?`現在値: $${pd.price.toFixed(2)} (${pd.chgPct>=0?'+':''}${pd.chgPct.toFixed(2)}%)`:'株価データなし';
+  const highInfo=hc?`3ヶ月高値: ${hc.h3m?'$'+hc.h3m.toFixed(2):'不明'} / 6ヶ月高値: ${hc.h6m?'$'+hc.h6m.toFixed(2):'不明'} / 52週高値: ${hc.h52w?'$'+hc.h52w.toFixed(2):'不明'}`:'';
+  const sysPrompt=`あなたはプロの株式アナリストです。Bloomberg、Reuters、WSJ、Seeking Alpha等の情報をもとに、以下の銘柄を日本語で詳しく分析してください。投資判断は個人の責任とします。途中で切れないよう必ず最後まで書いてください。
+銘柄: ${sym} / 日付: ${today} / ${priceInfo} / ${highInfo}
+以下の項目で詳しく分析（各項目4〜6行）：
+1.📋企業概要 2.📈業績トレンド 3.💡直近カタリスト 4.⚡強み・競合優位性 5.⚠️リスク 6.🎯バリュエーション
+最後に必ず：【スコア評価（0-100）】- 成長性: XX - 収益性: XX - 割安度: XX - モメンタム: XX - リスク水準(低=100): XX`;
+  try{
+    const text=await callGemini(sysPrompt);
+    out.classList.remove('ai-typing');out.textContent=text;
+    // scores
+    const names=['成長性','収益性','割安度','モメンタム','リスク水準'];
+    const scores={};
+    names.forEach(n=>{const m=text.match(new RegExp(n+'[^:：]*[：:]\\s*(\\d+)'));if(m)scores[n]=parseInt(m[1]);});
+    if(Object.keys(scores).length>0){
+      scoreSection.style.display='block';
+      const barsEl=document.getElementById('scoreBars');barsEl.innerHTML='';
+      Object.entries(scores).forEach(([label,val])=>{
+        const color=val>=70?'#059669':val>=40?'#2563eb':'#dc2626';
+        barsEl.innerHTML+=`<div class="score-item"><span style="color:var(--text2)">${label}</span><div class="score-bar-bg"><div class="score-bar-fill" style="width:${val}%;background:${color}"></div></div><span style="color:${color};font-size:14px">${val}</span></div>`;
+      });
+    }
+    // Show chat
+    chatHistory=[{role:'user',content:sysPrompt},{role:'assistant',content:text}];
+    document.getElementById('chatTitle').textContent=`${sym} について質問する`;
+    document.getElementById('chatContainer').style.display='block';
+    document.getElementById('chatMessages').innerHTML=`<div class="chat-msg ai"><div class="chat-avatar">🤖</div><div class="chat-bubble">${sym}の分析が完了しました！何でも聞いてください。<br>例：「なぜ成長性スコアが高いの？」「今が買い時？」「競合と比べると？」</div></div>`;
+  }catch(e){
+    out.classList.remove('ai-typing');
+    if(e.message==='NO_KEY')noKeyMsg(out);
+    else msgEl.innerHTML=`<div class="error-msg">エラー: ${e.message}</div>`;
+  }
+}
+
+// ---- CHAT ----
+async function sendChat(){
+  const input=document.getElementById('chatInput');
+  const q=input.value.trim();if(!q||!GEMINI_KEY)return;
+  input.value='';
+  const btn=document.getElementById('chatSendBtn');btn.disabled=true;
+  const messagesEl=document.getElementById('chatMessages');
+  // Add user message
+  messagesEl.innerHTML+=`<div class="chat-msg user"><div class="chat-avatar" style="background:#1d4ed8;color:white;font-size:11px">YOU</div><div class="chat-bubble">${q}</div></div>`;
+  // Add thinking bubble
+  const thinkId='think-'+Date.now();
+  messagesEl.innerHTML+=`<div class="chat-msg ai" id="${thinkId}"><div class="chat-avatar">🤖</div><div class="chat-bubble ai-typing" style="color:var(--text3)">考え中...</div></div>`;
+  messagesEl.scrollTop=messagesEl.scrollHeight;
+  chatHistory.push({role:'user',content:q});
+  try{
+    const text=await callGemini(chatHistory);
+    chatHistory.push({role:'assistant',content:text});
+    const thinkEl=document.getElementById(thinkId);
+    if(thinkEl){
+      thinkEl.querySelector('.chat-bubble').classList.remove('ai-typing');
+      thinkEl.querySelector('.chat-bubble').textContent=text;
+    }
+  }catch(e){
+    const thinkEl=document.getElementById(thinkId);
+    if(thinkEl) thinkEl.querySelector('.chat-bubble').textContent=`エラー: ${e.message}`;
+    chatHistory.pop();
+  }
+  messagesEl.scrollTop=messagesEl.scrollHeight;
+  btn.disabled=false;input.focus();
+}
+function clearChat(){
+  chatHistory=chatHistory.slice(0,2);// keep system context
+  document.getElementById('chatMessages').innerHTML=`<div class="chat-msg ai"><div class="chat-avatar">🤖</div><div class="chat-bubble">${currentAnalysisSym}について何でも聞いてください！</div></div>`;
+}
+</script>
+</body>
+</html>
